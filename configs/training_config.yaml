@@ -1,0 +1,7 @@
+batch_size: 512
+epochs: 4
+patience: 2
+
+# AdamW optimizer params
+lr: 0.001
+weight_decay: 0.01
