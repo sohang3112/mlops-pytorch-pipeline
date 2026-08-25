@@ -1,7 +1,5 @@
 # CIFAR 10 downloaded data
 data/
-# Trained models
-*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

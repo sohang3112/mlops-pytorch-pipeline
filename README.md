@@ -5,6 +5,11 @@ Full assignment question is given in [assignment3.pdf](assignment3.pdf) .
 
 ## Install
 
+After cloning this repo, pull objects (eg. trained model files) from Git LFS:
+
+```bash
+$ git lfs install
+
 Install requirements inside a venv:
 
 ```bash
@@ -73,6 +78,23 @@ Starting training...
 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 98/98 [00:58<00:00,  1.67it/s]
 {'epoch': 3, 'loss': tensor(17.2747), 'accuracy': tensor(0.6751)}
 Trained model saved to model.pth
+```
+
+Serving this trained *model.pth* on FastAPI server:
+
+```bash
+$ fastapi run serve.py
+```
+
+Server starts, now sending POST request to *http://127.0.0.1:8000/predict* with image upload *test_images/car.jpeg* correctly gives label 'car'.
+
+## Run Automated Tests
+
+`doctest` is utilized to ensure all code examples given in docstrings run correctly. Run all tests like this:
+
+```bash
+$ cd src/
+$ python -m doctest *.py
 ```
 
 ## Development Details
