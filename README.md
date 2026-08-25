@@ -3,7 +3,39 @@
 Solution for ML Ops course assignment 3 (in 3rd trimester of MTech AI from IIT Madras).
 Full assignment question is given in [assignment3.pdf](assignment3.pdf) .
 
-## Install
+## With Docker
+
+Instructions adapted from assignment PDF:
+
+```bash
+# Build training image
+$ docker build -f docker/Dockerfile.train -t mlops-train:v1 .
+# Run training with mounted volumes
+$ docker run --rm \
+    -v $(pwd)/data:/app/data \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/configs:/app/configs \
+    mlops-train:v1
+
+# Build serving image
+$ docker build -f docker/Dockerfile.serve -t mlops-serve:v1 .
+# Run serving
+$ docker run --rm -p 8080:8080 \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  mlops-serve:v1
+# Test prediction endpoint
+$ curl -X 'POST' \
+  'http://127.0.0.1:8080/predict' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'file=@src/test_images/car.jpeg;type=image/jpeg'
+# Check health status of the started serve docker container 
+$ docker ps
+```
+
+## Without Docker
+
+### Install
 
 After cloning this repo, pull objects (eg. trained model files) from Git LFS:
 
@@ -19,74 +51,21 @@ $ pip install -r requirements/train.txt
 $ pip install -r requirements/serve.txt
 ```
 
-## Run
+### Run
 
-Training:
-
-```bash
-$ cat configs/training_config.yaml
-batch_size: 512
-epochs: 4
-patience: 2
-
-# AdamW optimizer params
-lr: 0.001
-weight_decay: 0.01
-
-$ python src/train.py src/model.pth       # on first run, downloads CIFAR dataset to data/ folder
-Using device: cpu
-==========================================================================================
-Layer (type:depth-idx)                   Output Shape              Param #
-==========================================================================================
-Sequential                               [4, 10]                   --
-├─Conv2d: 1-1                            [4, 32, 32, 32]           896
-├─BatchNorm2d: 1-2                       [4, 32, 32, 32]           64
-├─ReLU: 1-3                              [4, 32, 32, 32]           --
-├─MaxPool2d: 1-4                         [4, 32, 16, 16]           --
-├─Conv2d: 1-5                            [4, 64, 16, 16]           18,496
-├─BatchNorm2d: 1-6                       [4, 64, 16, 16]           128
-├─ReLU: 1-7                              [4, 64, 16, 16]           --
-├─MaxPool2d: 1-8                         [4, 64, 8, 8]             --
-├─Conv2d: 1-9                            [4, 128, 8, 8]            73,856
-├─BatchNorm2d: 1-10                      [4, 128, 8, 8]            256
-├─ReLU: 1-11                             [4, 128, 8, 8]            --
-├─MaxPool2d: 1-12                        [4, 128, 4, 4]            --
-├─Flatten: 1-13                          [4, 2048]                 --
-├─Linear: 1-14                           [4, 512]                  1,049,088
-├─ReLU: 1-15                             [4, 512]                  --
-├─Dropout: 1-16                          [4, 512]                  --
-├─Linear: 1-17                           [4, 10]                   5,130
-==========================================================================================
-Total params: 1,147,914
-Trainable params: 1,147,914
-Non-trainable params: 0
-Total mult-adds (Units.MEGABYTES): 45.74
-==========================================================================================
-Input size (MB): 0.05
-Forward/backward pass size (MB): 3.69
-Params size (MB): 4.59
-Estimated Total Size (MB): 8.33
-==========================================================================================
-Loading CIFAR 10 data...
-Starting training...
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 98/98 [00:52<00:00,  1.86it/s]
-{'epoch': 0, 'loss': tensor(26.4423), 'accuracy': tensor(0.5029)}
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 98/98 [00:58<00:00,  1.68it/s]
-{'epoch': 1, 'loss': tensor(22.9558), 'accuracy': tensor(0.5798)}
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 98/98 [00:56<00:00,  1.73it/s]
-{'epoch': 2, 'loss': tensor(19.7099), 'accuracy': tensor(0.6290)}
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 98/98 [00:58<00:00,  1.67it/s]
-{'epoch': 3, 'loss': tensor(17.2747), 'accuracy': tensor(0.6751)}
-Trained model saved to model.pth
-```
-
-Serving this trained *model.pth* on FastAPI server:
+Train using *configs/training_config.yaml* and save trained model to *checkpoints/model.pth*:
 
 ```bash
-$ fastapi run serve.py
+$ python src/train.py checkpoints/model.pth       # on first run, downloads CIFAR dataset to data/ folder
 ```
 
-Server starts, now sending POST request to *http://127.0.0.1:8000/predict* with image upload *test_images/car.jpeg* correctly gives label 'car'.
+Serving this trained *checkpoints/model.pth* on FastAPI server:
+
+```bash
+$ python src/serve.py
+```
+
+Server starts, now sending POST request to *http://127.0.0.1:8080/predict* with image upload *test_images/car.jpeg* correctly gives label 'car'.
 
 ## Run Automated Tests
 

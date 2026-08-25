@@ -1,0 +1,17 @@
+FROM python:3.13-slim AS base
+WORKDIR /app
+COPY requirements/train.txt .
+RUN pip install --no-cache-dir -r train.txt
+
+FROM base AS training
+
+# run as a non-root user
+RUN groupadd --system appgroup && \
+    useradd --system --gid appgroup --create-home appuser
+USER appuser
+
+ENV PYTHONUNBUFFERED=1
+COPY src/ ./src/
+# data/ , configs/ , checkpoints/ are provided at runtime by mounting a volume
+
+ENTRYPOINT ["python", "src/train.py", "checkpoints/model.pth"]
