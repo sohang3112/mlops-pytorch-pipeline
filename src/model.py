@@ -1,6 +1,9 @@
 """Define architecture of CNN model to train on CIFAR 10 dataset."""
 
-from torch import nn
+from torch import nn, Tensor
+import torch
+
+from dataset import class_labels, load_tensor_from_image_bytes
 
 def _conv_batchnorm_relu_maxpool_block(in_channels: int, out_channels: int) -> list[nn.Module]:
     return [
@@ -29,10 +32,37 @@ def cnn_model() -> nn.Sequential:
         nn.ReLU(),
         nn.Dropout(p=0.3),  # Prevents overfitting
         nn.Linear(512, 10),  # 10 output classes for CIFAR-10
-        # Softmax layer omitted because CrossEntropyLoss() automatically does softmax
+        # Softmax layer omitted because CrossEntropyLoss() expects logits, not softmax probabilities
     )
     return model
 
+def predict_labels(model: nn.Module, batch_tensor: Tensor) -> list[str]:
+    """Predict labels using model and input tensor."""
+    model.eval()
+    with torch.no_grad():
+        logits = model(batch_tensor)
+        probabs = torch.softmax(logits, dim=1)
+        label_indices = torch.argmax(probabs, dim=1)
+        return [class_labels[idx] for idx in label_indices]
+
+def predict_label_for_single_image(model: nn.Module, image_bytes: bytes, device: torch.device) -> str:
+    """Predict label for a single image.
+    
+    Trained model.pth should correctly predict for car test image:
+
+    >>> from pathlib import Path
+    >>> device = torch.device('cpu')
+    >>> model = cnn_model().to(device)
+    >>> model.load_state_dict(torch.load('model.pth', weights_only=True))
+    <All keys matched successfully>
+    >>> image_bytes = Path('test_images/car.jpeg').read_bytes()
+    >>> predict_label_for_single_image(model, image_bytes, device)    # BUG: instead of 'car', trained model inference is giving 'frog'
+    'car'
+    """
+    image_tensor = load_tensor_from_image_bytes(image_bytes)
+    batch_tensor = image_tensor.unsqueeze(0).to(device)      # add batch dimension at start
+    labels = predict_labels(model, batch_tensor)
+    return labels[0]
 
 if __name__ == '__main__':
     import doctest

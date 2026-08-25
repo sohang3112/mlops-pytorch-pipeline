@@ -2,20 +2,25 @@
 
 $ python train.py path/to/model.pth
 """
-import yaml 
+
 from pathlib import Path
 
 import torch
 from torch import nn, optim, Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import yaml
 
 root_dir = Path(__file__).parent.parent
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Using device:', device)
 
 def load_hyperparams() -> dict[str, int | float]:
-    """Load model hyper-parameters."""
+    """Load model hyper-parameters.
+    
+    >>> load_hyperparams().keys()
+    dict_keys(['batch_size', 'epochs', 'patience', 'lr', 'weight_decay'])
+    """
     with (root_dir / 'configs' / 'training_config.yaml').open() as f:
         return yaml.safe_load(f)
 
