@@ -74,8 +74,7 @@ Server starts, now sending POST request to *http://127.0.0.1:8080/predict* with 
 `doctest` is utilized to ensure all code examples given in docstrings run correctly. Run all tests like this:
 
 ```bash
-$ cd src/
-$ python -m doctest *.py
+$ python -m doctest src/*.py
 ```
 
 ## Development Details

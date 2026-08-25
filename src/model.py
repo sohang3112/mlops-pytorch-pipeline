@@ -48,12 +48,12 @@ def predict_labels(model: nn.Module, batch_tensor: Tensor) -> list[str]:
 def predict_label_for_single_image(model: nn.Module, image_bytes: bytes, device: torch.device) -> str:
     """Predict label for a single image.
     
-    Trained model.pth should correctly predict for car test image:
+    Trained model should correctly predict for car test image:
 
     >>> from pathlib import Path
     >>> device = torch.device('cpu')
     >>> model = cnn_model().to(device)
-    >>> model.load_state_dict(torch.load('model.pth', weights_only=True))
+    >>> model.load_state_dict(torch.load('checkpoints/classifier_v1.pt', weights_only=True))
     <All keys matched successfully>
     >>> image_bytes = Path('test_images/car.jpeg').read_bytes()
     >>> predict_label_for_single_image(model, image_bytes, device)    # BUG: instead of 'car', trained model inference is giving 'frog'

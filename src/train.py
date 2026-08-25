@@ -1,6 +1,6 @@
 """Train model and save it at the specified path.
 
-$ python train.py path/to/model.pth
+$ python train.py path/to/checkpoint.pt
 """
 
 from pathlib import Path

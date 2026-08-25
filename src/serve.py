@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print('Using device:', device)
 
 model = cnn_model().to(device)
-model.load_state_dict(torch.load('checkpoints/model.pth', weights_only=True))
+model.load_state_dict(torch.load('checkpoints/classifier_v1.pt', weights_only=True))
 app = FastAPI()
 
 @app.get('/health')

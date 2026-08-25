@@ -69,7 +69,7 @@ def load_tensor_from_image_bytes(image_bytes: bytes) -> Tensor:
     >>> image_bytes = Path('test_images/car.jpeg').read_bytes()
     >>> image_tensor = load_tensor_from_image_bytes(image_bytes)
     >>> image_tensor.shape
-    torch.Size([1, 3, 32, 32])
+    torch.Size([3, 32, 32])
     """
     # Pillow is needed only at serve time, not train. 
     # So put import inside function (instead of with rest of module imports) so that during training we don't get import error for Pillow
