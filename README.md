@@ -29,6 +29,8 @@ $ curl -X 'POST' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
   -F 'file=@src/test_images/car.jpeg;type=image/jpeg'
+# Check health status of the started serve docker container 
+$ docker ps
 ```
 
 ## Without Docker

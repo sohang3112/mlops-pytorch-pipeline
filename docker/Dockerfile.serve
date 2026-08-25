@@ -1,5 +1,9 @@
 FROM python:3.13-slim
 
+# install curl for healthcheck command
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # run as a non-root user
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --create-home appuser
@@ -14,5 +18,5 @@ COPY src/ ./src/
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl http://0.0.0.0:8080/health || exit 1
 ENTRYPOINT ["python", "src/serve.py"]
