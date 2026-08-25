@@ -10,8 +10,10 @@ Instructions adapted from assignment PDF:
 ```bash
 # Build training image
 $ docker build -f docker/Dockerfile.train -t mlops-train:v1 .
-# Run training with mounted volumes
-$ docker run --rm \
+# Run training with mounted volumes; specify current user so that checkpoints/model.pth is created NOT owned by root
+# reason for deleting & recreating checkpoints directory is to prevent docker from creating checkpoints/ folder as root
+$ rm -rf checkpoints/ && mkdir checkpoints/ && docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v $(pwd)/data:/app/data \
     -v $(pwd)/checkpoints:/app/checkpoints \
     -v $(pwd)/configs:/app/configs \
