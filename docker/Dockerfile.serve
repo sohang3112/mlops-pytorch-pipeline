@@ -1,0 +1,18 @@
+FROM python:3.13-slim
+
+# run as a non-root user
+RUN groupadd --system appgroup && \
+    useradd --system --gid appgroup --create-home appuser
+USER appuser
+
+WORKDIR /app
+COPY requirements/serve.txt .
+RUN pip install --no-cache-dir -r serve.txt
+
+COPY src/ ./src/
+# checkpoints/ (having trained model) is provided at runtime by mounting volume
+ENV PYTHONUNBUFFERED=1
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+ENTRYPOINT ["python", "src/serve.py"]

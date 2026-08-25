@@ -1,4 +1,4 @@
-"""Train model at specified path.
+"""Train model and save it at the specified path.
 
 $ python train.py path/to/model.pth
 """

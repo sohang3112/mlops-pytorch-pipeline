@@ -1,8 +1,8 @@
-tqdm
-PyYAML
+tqdm==4.70
+PyYAML==6.0.3
 # install CPU-only torch and torchvision
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch
-torchvision
-torchinfo
+torch==2.13.0+cpu
+torchvision==0.28.0+cpu
+torchinfo==1.8
 
