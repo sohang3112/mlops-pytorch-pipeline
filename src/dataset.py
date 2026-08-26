@@ -52,13 +52,13 @@ def cifar10_train_val_dataloaders(batch_size: int) -> tuple[DataLoader[tuple[Ten
         train_set, 
         batch_size=batch_size, 
         shuffle=True, 
-        num_workers=0  # 2
+        num_workers=2
     )
     val_loader = DataLoader(
         val_set, 
         batch_size=batch_size, 
         shuffle=False, 
-        num_workers=0  #2
+        num_workers=2
     )
     return train_loader, val_loader
 
