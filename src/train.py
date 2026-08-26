@@ -23,7 +23,7 @@ def load_hyperparams() -> dict[str, int | float]:
     >>> load_hyperparams().keys()
     dict_keys(['batch_size', 'epochs', 'patience', 'lr', 'weight_decay'])
     """
-    hyperparams_path = Path('/app/configs/training_config.yaml') # (root_dir / 'configs' / 'training_config.yaml').resolve()
+    hyperparams_path = (root_dir / 'configs' / 'training_config.yaml').resolve()    # /app/configs/training_configs.yaml
     print(hyperparams_path)
     with hyperparams_path.open() as f:
         return yaml.safe_load(f)
