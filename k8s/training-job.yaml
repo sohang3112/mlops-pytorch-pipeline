@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ml-training-job
+  namespace: ml-training
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: trainer
+          image: mlops-train:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/configs
+            - name: host-data
+              mountPath: /app/data
+            - name: host-checkpoints
+              mountPath: /app/checkpoints
+      volumes:
+        - name: config-volume
+          configMap:
+            name: training-config
+        - name: host-data
+          hostPath:
+            path: /host-project/data
+            type: DirectoryOrCreate
+        - name: host-checkpoints
+          hostPath:
+            path: /host-project/checkpoints
+            type: DirectoryOrCreate
