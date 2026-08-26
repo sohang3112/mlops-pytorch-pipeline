@@ -1,8 +1,23 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-training-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ml-training-job
   namespace: ml-training
+  labels:
+    app: pytorch-training
+    project: mlops-pytorch-pipeline
 spec:
   backoffLimit: 2
   template:
@@ -11,10 +26,28 @@ spec:
         app: pytorch-training
     spec:
       restartPolicy: OnFailure
+      # 1. Init container runs first as root to fix mount permissions
+      initContainers:
+        - name: fix-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "mkdir -p /app/data /app/checkpoints && chmod -R 777 /app/data /app/checkpoints"]
+          volumeMounts:
+            - name: storage-volume
+              mountPath: /app/data
+              subPath: data
+            - name: storage-volume
+              mountPath: /app/checkpoints
+              subPath: checkpoints
+      # 2. Main training container
       containers:
         - name: trainer
           image: mlops-train:v1
           imagePullPolicy: IfNotPresent
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: OMP_NUM_THREADS
+              value: "2"
           resources:
             requests:
               cpu: "2"
@@ -25,19 +58,16 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /app/configs
-            - name: host-data
+            - name: storage-volume
               mountPath: /app/data
-            - name: host-checkpoints
+              subPath: data
+            - name: storage-volume
               mountPath: /app/checkpoints
+              subPath: checkpoints
       volumes:
         - name: config-volume
           configMap:
             name: training-config
-        - name: host-data
-          hostPath:
-            path: /host-project/data
-            type: DirectoryOrCreate
-        - name: host-checkpoints
-          hostPath:
-            path: /host-project/checkpoints
-            type: DirectoryOrCreate
+        - name: storage-volume
+          persistentVolumeClaim:
+            claimName: ml-training-pvc
