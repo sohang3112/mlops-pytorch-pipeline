@@ -9,7 +9,9 @@ spec:
   resources:
     requests:
       storage: 10Gi
+
 ---
+
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -19,6 +21,7 @@ metadata:
     app: pytorch-training
     project: mlops-pytorch-pipeline
 spec:
+  # backOffLimit: how many times Pod will retry running job before marking it as a failure
   backoffLimit: 2
   template:
     metadata:
@@ -29,6 +32,7 @@ spec:
       initContainers:
         - name: fix-permissions
           image: busybox:latest
+          # checkpoints/ folder: give all access to all users
           command: ["sh", "-c", "mkdir -p /app/checkpoints && chmod -R 777 /app/checkpoints"]
           volumeMounts:
             - name: storage-volume
@@ -37,8 +41,7 @@ spec:
       containers:
         - name: trainer
           image: mlops-train:v1
-          # imagePullPolicy: IfNotPresent
-          # ensure it NEVER uses an old cached image (great for debugging), always latest one
+          # ensure cached image is never used, always latest built only
           imagePullPolicy: Never
           env:
             - name: PYTHONUNBUFFERED
@@ -67,6 +70,7 @@ spec:
             name: training-config
         - name: project-data
           hostPath:
+            # /host-project/ refers to minikube's file system (since docker containers run inside its environment), NOT host file system
             path: /host-project/data
             type: Directory
         - name: storage-volume

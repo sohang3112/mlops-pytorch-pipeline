@@ -3,7 +3,10 @@
 Solution for ML Ops course assignment 3 (in 3rd trimester of MTech AI from IIT Madras).
 Full assignment question is given in [assignment3.pdf](assignment3.pdf) .
 
-## With Kubernetes (local cluster setup)
+
+## With Kubernetes (local cluster setup using Minikube)
+
+Kubernetes Training:
 
 ```bash
 # Start minikube (local kubernetes cluster) inside a docker container -> don't need to keep open separate terminal for it
@@ -16,11 +19,76 @@ $ minikube mount $(pwd):/host-project
 $ eval $(minikube docker-env)        # outputs nothing - configures docker builds to run in minikube environment not host docker
 $ echo $MINIKUBE_ACTIVE_DOCKERD      # env var should be set by the above command
 minikube
-$ kubectl apply -f k8s/namespace.yaml
-$ kubectl apply -f k8s/configmap.yaml
+$ kubectl apply -f k8s/namespace.yaml        # create namespace
+$ kubectl apply -f k8s/configmap.yaml        # configure hyper parameters for training
 $ ./kubernetes_retrain.sh    # build docker, kill existing job & start new using kubectl apply -f k8s/training-job.yaml, show running logs
 $ minikube delete     # Delete the Minikube cluster when finished
 ```
+
+Most important parts of the applied Kubernetes YAML files are (note: except for *namespace.yaml*, all other YAML files explicitly mention `project: mlops-pytorch-pipeline`):
+
+* [namespace.yaml](k8s/namespace.yaml) creates `kind: Namespace` having `name: ml-training`.
+* [configmap.yaml](k8s/configmap.yaml) creates `kind: ConfigMap` having `name: training-config` in existing Namespace (`namespace: ml-training`) and specifies training hyper-parameters YAML (in section `data:   training_config.yaml:`). This overwrites existing contents of *configs/training_config.yaml*, so hyper-parameters must be configured in *k8s/configmap.yaml* only to have effect in Kubernetes.
+* [training-job.yaml](k8s/training-job.yaml) has 2 jobs separated by `--` (both use `namespace: ml-training`) :
+  * `kind: PersistentVolumeClaim` having `name: ml-training-pvc` requires disk space `storage: 10Gi` .
+  * **Training** `kind: Job` having `name: ml-training-job` runs Docker `image: mlops-train:v1` that we built, constrained by limits `cpu: "2"` and `memory: "4Gi"`. */app/data/*, */app/configs/*, */app/checkpoints/* are all mounted as volumes using the PersistentValueClaim (PVC) we created.
+    * IMPORTANT: `hostPath:  path: /host-project/data` refers to minikube environment's file system.
+
+**NOTE**: Misnomer: Although namespace is called `ml-training`, it is in fact used in common for BOTH training and serving.s
+
+Kubernetes Model Serving:
+
+```bash
+# Build directly in Minikube's Docker daemon because the deployment uses
+# imagePullPolicy: Never.
+$ eval $(minikube docker-env)
+$ docker build -f docker/Dockerfile.serve -t mlops-serve:v1 .
+$ kubectl apply -f k8s/serving-deployment.yaml
+$ kubectl apply -f k8s/serving-service.yaml
+# When rebuilding the same image tag, force pods to use the new local image.
+$ kubectl rollout restart deployment/ml-serving-deployment -n ml-training
+# Wait until all replicas are ready.
+$ kubectl rollout status deployment/ml-serving-deployment -n ml-training
+# Verify pods are running and healthy:
+$ kubectl get deployment,pods,svc -n ml-training -o wide
+
+# If a serving pod is in CrashLoopBackOff, inspect Kubernetes events and FastAPI
+# stdout. `--previous` retrieves the terminated container's logs after a restart.
+$ kubectl get events -n ml-training --sort-by=.lastTimestamp
+$ kubectl logs -n ml-training -l app=ml-serving --all-containers --tail=200 --prefix
+$ kubectl logs -n ml-training -l app=ml-serving --all-containers --previous --tail=200 --prefix
+$ kubectl describe deployment ml-serving-deployment -n ml-training
+
+# Confirm the training job completed and the PVC it writes to is bound.
+$ kubectl logs -n ml-training job/ml-training-job --tail=250
+$ kubectl get pvc,pv -n ml-training -o wide
+
+# The serving Deployment mounts the PVC at /app/checkpoints with
+# `subPath: checkpoints`: the training Job saves classifier_v1.pt in that
+# subdirectory. After changing the Deployment, apply it and wait for the
+# rollout before testing.
+$ kubectl apply -f k8s/serving-deployment.yaml
+$ kubectl rollout status deployment/ml-serving-deployment -n ml-training
+$ kubectl get pods -n ml-training -l app=ml-serving
+
+# Test the prediction endpoint:
+# Port-forward for local testing
+$ kubectl port-forward svc/ml-serving-service 8080:80 -n ml-training
+# Send a prediction request
+# Replace path/to/image.jpeg with a JPEG file that exists on your machine.
+$ curl -X 'POST' \
+  'http://127.0.0.1:8080/predict' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'file=@path/to/image.jpeg;type=image/jpeg'
+```
+
+The original `CrashLoopBackOff` was caused by the serving container failing at
+startup with `FileNotFoundError` for `checkpoints/classifier_v1.pt`. The
+Kubernetes training job produces `checkpoints/model.pth`, so `src/serve.py`
+now loads that artifact. Training uses the `checkpoints` subdirectory of
+`ml-training-pvc`, while serving had mounted the root of that PVC. The serving
+Deployment now mounts the same `checkpoints` subdirectory.
 
 ## With Docker
 
@@ -45,11 +113,12 @@ $ docker run --rm -p 8080:8080 \
   -v $(pwd)/checkpoints:/app/checkpoints \
   mlops-serve:v1
 # Test prediction endpoint
+# Replace path/to/image.jpeg with a JPEG file that exists on your machine.
 $ curl -X 'POST' \
   'http://127.0.0.1:8080/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'file=@src/test_images/car.jpeg;type=image/jpeg'
+  -F 'file=@path/to/image.jpeg;type=image/jpeg'
 # Check health status of the started serve docker container 
 $ docker ps
 ```
@@ -87,6 +156,8 @@ $ python src/serve.py
 ```
 
 Server starts, now sending POST request to *http://127.0.0.1:8080/predict* with image upload *test_images/car.jpeg* correctly gives label 'car'.
+
+Server also has a GET */health* endpoint.
 
 ## Run Automated Tests
 
