@@ -42,13 +42,11 @@ def cifar10_train_val_dataloaders(batch_size: int) -> tuple[DataLoader[tuple[Ten
     train_set = torchvision.datasets.CIFAR10(
         root=data_path, 
         train=True, 
-        #download=True,        # removed download=True because only to use pre-downloaded data not new download
         transform=train_transform
     )
     val_set = torchvision.datasets.CIFAR10(
         root=data_path, 
         train=False, 
-        #download=True,         # removed download=True because only to use pre-downloaded data not new download
         transform=val_transform
     )
 
