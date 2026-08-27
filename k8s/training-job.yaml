@@ -26,23 +26,20 @@ spec:
         app: pytorch-training
     spec:
       restartPolicy: OnFailure
-      # 1. Init container runs first as root to fix mount permissions
       initContainers:
         - name: fix-permissions
           image: busybox:latest
-          command: ["sh", "-c", "mkdir -p /app/data /app/checkpoints && chmod -R 777 /app/data /app/checkpoints"]
+          command: ["sh", "-c", "mkdir -p /app/checkpoints && chmod -R 777 /app/checkpoints"]
           volumeMounts:
-            - name: storage-volume
-              mountPath: /app/data
-              subPath: data
             - name: storage-volume
               mountPath: /app/checkpoints
               subPath: checkpoints
-      # 2. Main training container
       containers:
         - name: trainer
           image: mlops-train:v1
-          imagePullPolicy: IfNotPresent
+          # imagePullPolicy: IfNotPresent
+          # ensure it NEVER uses an old cached image (great for debugging), always latest one
+          imagePullPolicy: Never
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -58,9 +55,9 @@ spec:
           volumeMounts:
             - name: config-volume
               mountPath: /app/configs
-            - name: storage-volume
+            - name: project-data
               mountPath: /app/data
-              subPath: data
+              readOnly: true
             - name: storage-volume
               mountPath: /app/checkpoints
               subPath: checkpoints
@@ -68,6 +65,10 @@ spec:
         - name: config-volume
           configMap:
             name: training-config
+        - name: project-data
+          hostPath:
+            path: /host-project/data
+            type: Directory
         - name: storage-volume
           persistentVolumeClaim:
             claimName: ml-training-pvc
