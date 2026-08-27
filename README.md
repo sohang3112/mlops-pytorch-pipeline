@@ -67,4 +67,6 @@ $ curl -X 'POST' \
 $ python -m doctest src/*.py
 ```
 
+## Git Commits
 
+To ensure conformity with *Conventional Commits* style, `npm install -g git-cz` was installed and `git cz` was used (it interactively asks a few questions and then internally does `git commit`).
