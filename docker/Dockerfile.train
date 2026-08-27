@@ -14,4 +14,4 @@ ENV PYTHONUNBUFFERED=1
 COPY src/ ./src/
 # data/ , configs/ , checkpoints/ are provided at runtime by mounting a volume
 
-ENTRYPOINT ["python", "src/train.py", "checkpoints/model.pth"]
+ENTRYPOINT ["python", "src/train.py", "checkpoints/classifier_v1.pt"]

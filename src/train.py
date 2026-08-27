@@ -88,6 +88,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(__doc__)
     parser.add_argument('model_path', type=Path, help='*.pth file path where trained model should be saved.')
     args = parser.parse_args()
+    print('SPECIFIED OUTPUT MODEL PATH:', args.model_path)
 
     hyperparams = load_hyperparams()
     print('Hyperparams loaded:', hyperparams)

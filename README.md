@@ -1,94 +1,65 @@
-# mlops-pytorch-pipeline
+# Mlops Pytorch Pipeline
 
-Solution for ML Ops course assignment 3 (in 3rd trimester of MTech AI from IIT Madras).
-Full assignment question is given in [assignment3.pdf](assignment3.pdf) .
+## Architecture Diagram
 
-## With Kubernetes (local cluster setup)
+```mermaid
+flowchart LR
+    HostDir["Host: Project Root Dir"] -->|minikube mount| HostPath["Minikube VM: /host-project/data"]
+    Client([Client: curl]) --> Svc["ClusterIP: External server IP, port"]
+    Svc --> ServeDeploy["Deployment: 2 Serving replicas"]
 
-```bash
-# Start minikube (local kubernetes cluster) inside a docker container -> don't need to keep open separate terminal for it
-$ minikube start --driver=docker --cpus=4 --memory=6144
-
-# IMPORTANT: run following in a separate dedicated terminal or tmux (or else run it as a background process)
-# 2 parts of mounting volumes: host -> minikube (done by this command), and minikube -> training docker (that's done in training-job.yaml)
-$ minikube mount $(pwd):/host-project
-
-$ eval $(minikube docker-env)        # outputs nothing - configures docker builds to run in minikube environment not host docker
-$ echo $MINIKUBE_ACTIVE_DOCKERD      # env var should be set by the above command
-minikube
-$ kubectl apply -f k8s/namespace.yaml
-$ kubectl apply -f k8s/configmap.yaml
-$ ./kubernetes_retrain.sh    # build docker, kill existing job & start new using kubectl apply -f k8s/training-job.yaml, show running logs
-$ minikube delete     # Delete the Minikube cluster when finished
+    subgraph Cluster["Namespace: ml-training"]
+        ConfigMap["ConfigMap: train hyper-parameters"] --> TrainJob["Job: ml-training-job"]
+        HostPath -->|HostPath Volume| TrainJob
+        TrainJob -->|Write checkpoints| PVC["PVC: Persistent Volume Claim"]
+        PVC -->|Read-only mount| ServeDeploy
+    end
 ```
 
-## With Docker
+## Install & Run
 
-Instructions adapted from assignment PDF:
+**Pre-Requisite Tooling**: `git lfs`, `docker`, Kubernetes (`kubectl` and `minikube` for local cluster setup)
+
+- Start a local Kubernetes cluster (in the background) using Minikube: `minikube start --driver=docker --cpus=4 --memory=6144`
+- In a separate dedicated terminal run:
 
 ```bash
-# Build training image
-$ docker build -f docker/Dockerfile.train -t mlops-train:v1 .
-# Run training with mounted volumes; specify current user so that checkpoints/model.pth is created NOT owned by root
-# reason for deleting & recreating checkpoints directory is to prevent docker from creating checkpoints/ folder as root
-$ rm -rf checkpoints/ && mkdir checkpoints/ && docker run --rm \
-    --user "$(id -u):$(id -g)" \
-    -v $(pwd)/data:/app/data \
-    -v $(pwd)/checkpoints:/app/checkpoints \
-    -v $(pwd)/configs:/app/configs \
-    mlops-train:v1
+$ minikube mount $(pwd):/host-project
+📁  Mounting host path /home/sohang/Projects/mlops-pytorch-pipeline into VM as /host-project ...
+...
+```
 
-# Build serving image
+- Run the rest of the workflow steps in a different terminal:
+
+```bash
+# Build training and serving docker images inside minikube's environment
+$ eval $(minikube docker-env)
+$ docker build -f docker/Dockerfile.train -t mlops-train:v1 .
 $ docker build -f docker/Dockerfile.serve -t mlops-serve:v1 .
-# Run serving
-$ docker run --rm -p 8080:8080 \
-  -v $(pwd)/checkpoints:/app/checkpoints \
-  mlops-serve:v1
-# Test prediction endpoint
+
+# Apply Training Manifest YAML files to start Training Job in Kubernetes
+$ kubectl apply -f k8s/namespace.yaml 
+$ kubectl apply -f k8s/configmap.yaml 
+$ kubectl apply -f k8s/training-job.yaml
+
+# After Training Job is done, apply Serving Manifests to start Serving Job in Kubernetes
+$ kubectl apply -f k8s/serving-deployment.yaml      # starts 2 prediction server replicas
+$ kubectl apply -f k8s/serving-service.yaml         # presents one stable server IP, port that internally calls the 2 replicas
+
+# Verify Pods are running and healthy
+$ kubectl get pods -n ml-training
+$ kubectl describe deployment ml-serving-deployment -n ml-training
+
+# Test Prediction Endpoint (using the file test_images/car.jpeg included in this repo)
 $ curl -X 'POST' \
   'http://127.0.0.1:8080/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'file=@src/test_images/car.jpeg;type=image/jpeg'
-# Check health status of the started serve docker container 
-$ docker ps
+  -F 'file=@test_images/car.jpeg;type=image/jpeg'
+"car"
 ```
 
-## Without Docker
-
-### Install
-
-After cloning this repo, pull objects (eg. trained model files) from Git LFS:
-
-```bash
-$ git lfs install
-
-Install requirements inside a venv:
-
-```bash
-$ python -m venv .venv/    
-$ source .venv/bin/activate
-$ pip install -r requirements/train.txt
-$ pip install -r requirements/serve.txt
-```
-
-### Run
-
-Train using *configs/training_config.yaml* and save trained model to *checkpoints/model.pth*:
-
-```bash
-$ python src/train.py checkpoints/model.pth       # on first run, downloads CIFAR dataset to data/ folder
-```
-
-Serving this trained *checkpoints/model.pth* on FastAPI server:
-
-```bash
-$ python src/serve.py
-```
-
-Server starts, now sending POST request to *http://127.0.0.1:8080/predict* with image upload *test_images/car.jpeg* correctly gives label 'car'.
-
-## Run Automated Tests
+## Testing Documentation Examples
 
 `doctest` is utilized to ensure all code examples given in docstrings run correctly. Run all tests like this:
 
@@ -96,16 +67,4 @@ Server starts, now sending POST request to *http://127.0.0.1:8080/predict* with 
 $ python -m doctest src/*.py
 ```
 
-## Development Details
 
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#summary) are required - i.e., Git commit messages should follow this standard format:
-
-```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-```
-
-To automatically follow Conventional Commits standard, `npm install --global git-cz` is installed, and instead of `git commit`, `git cz` command is used.
