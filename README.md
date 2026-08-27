@@ -39,8 +39,6 @@ Most important parts of the applied Kubernetes YAML files are (note: except for 
 Kubernetes Model Serving:
 
 ```bash
-# Build directly in Minikube's Docker daemon because the deployment uses
-# imagePullPolicy: Never.
 $ eval $(minikube docker-env)
 $ docker build -f docker/Dockerfile.serve -t mlops-serve:v1 .
 $ kubectl apply -f k8s/serving-deployment.yaml
@@ -64,31 +62,28 @@ $ kubectl logs -n ml-training job/ml-training-job --tail=250
 $ kubectl get pvc,pv -n ml-training -o wide
 
 # The serving Deployment mounts the PVC at /app/checkpoints with
-# `subPath: checkpoints`: the training Job saves classifier_v1.pt in that
-# subdirectory. After changing the Deployment, apply it and wait for the
-# rollout before testing.
+# `subPath: checkpoints`. The current training image saves classifier_v1.pt;
+# an earlier image saved model.pth. Serving accepts either artifact so a
+# persistent PVC from an earlier training run remains deployable. After
+# changing the Deployment, apply it and wait for the rollout before testing.
 $ kubectl apply -f k8s/serving-deployment.yaml
 $ kubectl rollout status deployment/ml-serving-deployment -n ml-training
 $ kubectl get pods -n ml-training -l app=ml-serving
 
 # Test the prediction endpoint:
-# Port-forward for local testing
-$ kubectl port-forward svc/ml-serving-service 8080:80 -n ml-training
-# Send a prediction request
-# Replace path/to/image.jpeg with a JPEG file that exists on your machine.
 $ curl -X 'POST' \
   'http://127.0.0.1:8080/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'file=@path/to/image.jpeg;type=image/jpeg'
+  -F 'file=@test_images/car.jpeg;type=image/jpeg'
 ```
 
-The original `CrashLoopBackOff` was caused by the serving container failing at
-startup with `FileNotFoundError` for `checkpoints/classifier_v1.pt`. The
-Kubernetes training job produces `checkpoints/model.pth`, so `src/serve.py`
-now loads that artifact. Training uses the `checkpoints` subdirectory of
-`ml-training-pvc`, while serving had mounted the root of that PVC. The serving
-Deployment now mounts the same `checkpoints` subdirectory.
+The rollout can stall when a new serving pod enters `CrashLoopBackOff`. One
+observed cause was a checkpoint-name mismatch: the persistent PVC contained
+`checkpoints/model.pth` from an earlier training image while serving expected
+`checkpoints/classifier_v1.pt`. `src/serve.py` now prefers `classifier_v1.pt`
+and falls back to `model.pth`. Training and serving both mount the PVC's
+`checkpoints` subdirectory.
 
 ## With Docker
 
@@ -97,7 +92,7 @@ Instructions adapted from assignment PDF:
 ```bash
 # Build training image
 $ docker build -f docker/Dockerfile.train -t mlops-train:v1 .
-# Run training with mounted volumes; specify current user so that checkpoints/model.pth is created NOT owned by root
+# Run training with mounted volumes; specify current user so that checkpoints/classifier_v1.pt is created NOT owned by root
 # reason for deleting & recreating checkpoints directory is to prevent docker from creating checkpoints/ folder as root
 $ rm -rf checkpoints/ && mkdir checkpoints/ && docker run --rm \
     --user "$(id -u):$(id -g)" \
@@ -113,12 +108,11 @@ $ docker run --rm -p 8080:8080 \
   -v $(pwd)/checkpoints:/app/checkpoints \
   mlops-serve:v1
 # Test prediction endpoint
-# Replace path/to/image.jpeg with a JPEG file that exists on your machine.
 $ curl -X 'POST' \
   'http://127.0.0.1:8080/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'file=@path/to/image.jpeg;type=image/jpeg'
+  -F 'file=@test_images/car.jpeg;type=image/jpeg'
 # Check health status of the started serve docker container 
 $ docker ps
 ```
@@ -143,13 +137,13 @@ $ pip install -r requirements/serve.txt
 
 ### Run
 
-Train using *configs/training_config.yaml* and save trained model to *checkpoints/model.pth*:
+Train using *configs/training_config.yaml* and save trained model to *checkpoints/classifier_v1.pt*:
 
 ```bash
-$ python src/train.py checkpoints/model.pth       # on first run, downloads CIFAR dataset to data/ folder
+$ python src/train.py checkpoints/classifier_v1.pt      # on first run, downloads CIFAR dataset to data/ folder
 ```
 
-Serving this trained *checkpoints/model.pth* on FastAPI server:
+Serving this trained *checkpoints/classifier_v1.pt* on FastAPI server:
 
 ```bash
 $ python src/serve.py
