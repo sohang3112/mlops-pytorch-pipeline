@@ -15,16 +15,16 @@ ssl._create_default_https_context = ssl._create_unverified_context
 root_dir = Path(__file__).parent.parent
 class_labels = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']  # CIFAR 10 class mapping
 
-train_transform = transforms.Compose([
+augment_transforms = [
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
+]
+preprocess_transforms = [
     transforms.ToTensor(),
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-])
-val_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-])
+]
+train_transform = transforms.Compose(augment_transforms + preprocess_transforms)
+val_transform = transforms.Compose(preprocess_transforms)
 
 def cifar10_train_val_dataloaders(batch_size: int) -> tuple[DataLoader[tuple[Tensor, Tensor]], DataLoader[tuple[Tensor, Tensor]]]:
     """Returns train, test data loaders for CIFAR 10 data (with train & test transforms applied). 
@@ -34,17 +34,21 @@ def cifar10_train_val_dataloaders(batch_size: int) -> tuple[DataLoader[tuple[Ten
 
     >>> train_loader, val_loader = cifar10_train_val_dataloaders(batch_size=64)
     """
-    # Training needs data augmentation; Testing only needs conversion and normalization
+    # in kubernetes this file ends up at /app/src/dataset.py
+    data_path = (root_dir / 'data').resolve()
+    print('Data Path Folder:', data_path, end=', ')
+    print('Has Contents:', list(data_path.iterdir()))
+
     train_set = torchvision.datasets.CIFAR10(
-        root=root_dir / 'data', 
+        root=data_path, 
         train=True, 
-        download=True, 
+        #download=True,        # removed download=True because only to use pre-downloaded data not new download
         transform=train_transform
     )
     val_set = torchvision.datasets.CIFAR10(
-        root=root_dir / 'data', 
+        root=data_path, 
         train=False, 
-        download=True, 
+        #download=True,         # removed download=True because only to use pre-downloaded data not new download
         transform=val_transform
     )
 
@@ -52,13 +56,13 @@ def cifar10_train_val_dataloaders(batch_size: int) -> tuple[DataLoader[tuple[Ten
         train_set, 
         batch_size=batch_size, 
         shuffle=True, 
-        num_workers=2
+        num_workers=0      # 2 -- set to 0 else kubernetes gives weird memory errors
     )
     val_loader = DataLoader(
         val_set, 
         batch_size=batch_size, 
         shuffle=False, 
-        num_workers=2
+        num_workers=0      # 2 -- set to 0 else kubernetes gives weird memory errors
     )
     return train_loader, val_loader
 

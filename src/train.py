@@ -8,8 +8,10 @@ from pathlib import Path
 import torch
 from torch import nn, optim, Tensor
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import yaml
+
+torch.set_num_threads(2)
+torch.set_num_interop_threads(2)
 
 root_dir = Path(__file__).parent.parent
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,7 +23,9 @@ def load_hyperparams() -> dict[str, int | float]:
     >>> load_hyperparams().keys()
     dict_keys(['batch_size', 'epochs', 'patience', 'lr', 'weight_decay'])
     """
-    with (root_dir / 'configs' / 'training_config.yaml').open() as f:
+    hyperparams_path = (root_dir / 'configs' / 'training_config.yaml').resolve()    # /app/configs/training_configs.yaml
+    print(hyperparams_path)
+    with hyperparams_path.open() as f:
         return yaml.safe_load(f)
 
 def train(
@@ -37,9 +41,11 @@ def train(
     best_epoch = 0
     best_loss = float('inf')
     for epoch in range(epochs):
+        print(f'{epoch=}')
         # train for current epoch
         model.train()
-        for (inputs, label_indices) in tqdm(train_loader):
+        for batch_idx, (inputs, label_indices) in enumerate(train_loader):       # train_loader has 98 batches
+            print(f'train: {epoch=} {batch_idx=}')
             inputs, label_indices = inputs.to(device), label_indices.to(device)
             optimizer.zero_grad() 
             logits = model(inputs)   
@@ -53,7 +59,8 @@ def train(
             eval_loss = 0
             correct = 0
             total = 0
-            for (inputs, label_indices) in val_loader:
+            for batch_idx, (inputs, label_indices) in enumerate(val_loader):
+                print(f'eval: {epoch=} {batch_idx=}')
                 inputs, label_indices = inputs.to(device), label_indices.to(device)
                 logits = model(inputs)
                 probabs = torch.softmax(logits, dim=1)
@@ -83,6 +90,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     hyperparams = load_hyperparams()
+    print('Hyperparams loaded:', hyperparams)
     model = cnn_model()
     torchinfo.summary(model, input_size=(4,3,32,32))
     print('Loading CIFAR 10 data...')

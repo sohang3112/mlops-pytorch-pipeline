@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-config
+  namespace: ml-training
+data:
+  training_config.yaml: |
+    batch_size: 1024
+    epochs: 2
+    patience: 1
+
+    # AdamW optimizer params
+    lr: 0.001
+    weight_decay: 0.01

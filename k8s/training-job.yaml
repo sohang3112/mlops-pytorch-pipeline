@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-training-pvc
+  namespace: ml-training
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ml-training-job
+  namespace: ml-training
+  labels:
+    app: pytorch-training
+    project: mlops-pytorch-pipeline
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: fix-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "mkdir -p /app/checkpoints && chmod -R 777 /app/checkpoints"]
+          volumeMounts:
+            - name: storage-volume
+              mountPath: /app/checkpoints
+              subPath: checkpoints
+      containers:
+        - name: trainer
+          image: mlops-train:v1
+          # imagePullPolicy: IfNotPresent
+          # ensure it NEVER uses an old cached image (great for debugging), always latest one
+          imagePullPolicy: Never
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: OMP_NUM_THREADS
+              value: "2"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/configs
+            - name: project-data
+              mountPath: /app/data
+              readOnly: true
+            - name: storage-volume
+              mountPath: /app/checkpoints
+              subPath: checkpoints
+      volumes:
+        - name: config-volume
+          configMap:
+            name: training-config
+        - name: project-data
+          hostPath:
+            path: /host-project/data
+            type: Directory
+        - name: storage-volume
+          persistentVolumeClaim:
+            claimName: ml-training-pvc

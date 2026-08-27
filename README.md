@@ -3,6 +3,25 @@
 Solution for ML Ops course assignment 3 (in 3rd trimester of MTech AI from IIT Madras).
 Full assignment question is given in [assignment3.pdf](assignment3.pdf) .
 
+## With Kubernetes (local cluster setup)
+
+```bash
+# Start minikube (local kubernetes cluster) inside a docker container -> don't need to keep open separate terminal for it
+$ minikube start --driver=docker --cpus=4 --memory=6144
+
+# IMPORTANT: run following in a separate dedicated terminal or tmux (or else run it as a background process)
+# 2 parts of mounting volumes: host -> minikube (done by this command), and minikube -> training docker (that's done in training-job.yaml)
+$ minikube mount $(pwd):/host-project
+
+$ eval $(minikube docker-env)        # outputs nothing - configures docker builds to run in minikube environment not host docker
+$ echo $MINIKUBE_ACTIVE_DOCKERD      # env var should be set by the above command
+minikube
+$ kubectl apply -f k8s/namespace.yaml
+$ kubectl apply -f k8s/configmap.yaml
+$ ./kubernetes_retrain.sh    # build docker, kill existing job & start new using kubectl apply -f k8s/training-job.yaml, show running logs
+$ minikube delete     # Delete the Minikube cluster when finished
+```
+
 ## With Docker
 
 Instructions adapted from assignment PDF:
@@ -90,6 +109,3 @@ $ python -m doctest src/*.py
 ```
 
 To automatically follow Conventional Commits standard, `npm install --global git-cz` is installed, and instead of `git commit`, `git cz` command is used.
-
-
-
